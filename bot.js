@@ -663,6 +663,16 @@ function canUseSetupCommands(member, guild, settings) {
     return false;
 }
 
+// دالة للتحقق من صلاحيات استخدام أوامر الإدارة
+function canUseModerationCommands(member) {
+    return member.permissions.has(PermissionsBitField.Flags.Administrator) || 
+           member.permissions.has(PermissionsBitField.Flags.BanMembers) ||
+           member.permissions.has(PermissionsBitField.Flags.KickMembers) ||
+           member.permissions.has(PermissionsBitField.Flags.ModerateMembers) ||
+           member.permissions.has(PermissionsBitField.Flags.ManageChannels) ||
+           member.permissions.has(PermissionsBitField.Flags.ManageRoles);
+}
+
 // دالة لتسجيل الـ Slash Commands
 async function registerCommands() {
     try {
@@ -1590,12 +1600,14 @@ client.on('interactionCreate', async (interaction) => {
         serverSettings[guild.id] = settings;
     }
     
-    // التحقق من الصلاحيات
-    if (!canUseSetupCommands(member, guild, settings)) {
-        return interaction.reply({ 
-            content: '❌ **ليس لديك الصلاحية لاستخدام هذه الأوامر!**\n\nفقط مالك السيرفر والمشرفون يمكنهم استخدام أوامر الإعداد.',
-            ephemeral: true 
-        });
+    // التحقق من الصلاحيات لأوامر الإعداد
+    if (commandName === 'setup' || commandName === 'reset' || commandName === 'help') {
+        if (!canUseSetupCommands(member, guild, settings)) {
+            return interaction.reply({ 
+                content: '❌ **ليس لديك الصلاحية لاستخدام هذه الأوامر!**\n\nفقط مالك السيرفر والمشرفون يمكنهم استخدام أوامر الإعداد.',
+                ephemeral: true 
+            });
+        }
     }
     
     // أمر المساعدة
@@ -1652,6 +1664,20 @@ client.on('interactionCreate', async (interaction) => {
 **\`/help\`**
 • عرض هذه القائمة
                     `
+                },
+                {
+                    name: '🛡️ **أوامر الإدارة (Moderation)**',
+                    value: `
+**\`/ban <user> [reason] [days]\`** - حظر مستخدم
+**\`/kick <user> [reason]\`** - طرد مستخدم
+**\`/timeout <user> <duration> [reason]\`** - كتم صوت مؤقت
+**\`/lock [channel] [reason]\`** - قفل قناة
+**\`/unlock [channel] [reason]\`** - فتح قناة
+**\`/role give <user> <role>\`** - إعطاء رتبة
+**\`/role remove <user> <role>\`** - إزالة رتبة
+**\`/role list <user>\`** - عرض رتب المستخدم
+**\`/role removeall [role]\`** - إزالة كل الرتب أو رتبة محددة
+                    `
                 }
             )
             .addFields(
@@ -1661,6 +1687,7 @@ client.on('interactionCreate', async (interaction) => {
 1. **يجب إكمال الخطوات الأربعة الإجبارية** قبل ما يشتغل البوت
 2. **الرتبة المحددة** هي اللي بتحدد مين المشرفين
 3. **Owner السيرفر** و **Admins** يقدرون يستخدموا الأوامر
+4. أوامر الإدارة تحتاج صلاحيات مناسبة
                     `
                 },
                 {
@@ -1890,6 +1917,647 @@ client.on('interactionCreate', async (interaction) => {
             });
         }
         return;
+    }
+    
+    // ================ أوامر النظام (Moderation Commands) ================
+    
+    // أمر ban
+    if (commandName === 'ban') {
+        // التحقق من الصلاحيات
+        if (!member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+            return interaction.reply({ 
+                content: '❌ **ليس لديك الصلاحية لاستخدام هذا الأمر!**\n\nأنت بحاجة إلى صلاحية **Ban Members**.',
+                ephemeral: true 
+            });
+        }
+        
+        const targetUser = options.getUser('user');
+        const reason = options.getString('reason') || 'لم يتم تحديد سبب';
+        const days = options.getInteger('days') || 0;
+        
+        const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+        
+        if (!targetMember) {
+            return interaction.reply({ 
+                content: '❌ **المستخدم غير موجود في السيرفر!**',
+                ephemeral: true 
+            });
+        }
+        
+        // التحقق من الرتب (لا يمكن حظر شخص برتبة أعلى)
+        if (targetMember.roles.highest.position >= member.roles.highest.position && member.id !== guild.ownerId) {
+            return interaction.reply({ 
+                content: '❌ **لا يمكنك حظر هذا المستخدم!**\n\nرتبته أعلى أو تساوي رتبتك.',
+                ephemeral: true 
+            });
+        }
+        
+        try {
+            await targetMember.ban({ 
+                deleteMessageSeconds: days * 86400, // تحويل الأيام لثواني
+                reason: `بواسطة: ${member.user.tag} | السبب: ${reason}`
+            });
+            
+            const embed = new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle('🔨 تم حظر مستخدم')
+                .setDescription(`**تم حظر ${targetUser.tag} بنجاح**`)
+                .addFields(
+                    { name: '👤 المستخدم', value: `${targetUser.tag} (<@${targetUser.id}>)`, inline: true },
+                    { name: '👑 بواسطة', value: `${member.user.tag}`, inline: true },
+                    { name: '📝 السبب', value: reason, inline: false },
+                    { name: '🗑️ حذف الرسائل', value: `${days} يوم`, inline: true }
+                )
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed] });
+            
+        } catch (error) {
+            console.error('❌ خطأ في أمر ban:', error);
+            await interaction.reply({ 
+                content: '❌ **حدث خطأ أثناء محاولة حظر المستخدم!**',
+                ephemeral: true 
+            });
+        }
+        return;
+    }
+    
+    // أمر kick
+    if (commandName === 'kick') {
+        // التحقق من الصلاحيات
+        if (!member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
+            return interaction.reply({ 
+                content: '❌ **ليس لديك الصلاحية لاستخدام هذا الأمر!**\n\nأنت بحاجة إلى صلاحية **Kick Members**.',
+                ephemeral: true 
+            });
+        }
+        
+        const targetUser = options.getUser('user');
+        const reason = options.getString('reason') || 'لم يتم تحديد سبب';
+        
+        const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+        
+        if (!targetMember) {
+            return interaction.reply({ 
+                content: '❌ **المستخدم غير موجود في السيرفر!**',
+                ephemeral: true 
+            });
+        }
+        
+        // التحقق من الرتب
+        if (targetMember.roles.highest.position >= member.roles.highest.position && member.id !== guild.ownerId) {
+            return interaction.reply({ 
+                content: '❌ **لا يمكنك طرد هذا المستخدم!**\n\nرتبته أعلى أو تساوي رتبتك.',
+                ephemeral: true 
+            });
+        }
+        
+        try {
+            await targetMember.kick(`بواسطة: ${member.user.tag} | السبب: ${reason}`);
+            
+            const embed = new EmbedBuilder()
+                .setColor(0xf39c12)
+                .setTitle('👢 تم طرد مستخدم')
+                .setDescription(`**تم طرد ${targetUser.tag} بنجاح**`)
+                .addFields(
+                    { name: '👤 المستخدم', value: `${targetUser.tag} (<@${targetUser.id}>)`, inline: true },
+                    { name: '👑 بواسطة', value: `${member.user.tag}`, inline: true },
+                    { name: '📝 السبب', value: reason, inline: false }
+                )
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed] });
+            
+        } catch (error) {
+            console.error('❌ خطأ في أمر kick:', error);
+            await interaction.reply({ 
+                content: '❌ **حدث خطأ أثناء محاولة طرد المستخدم!**',
+                ephemeral: true 
+            });
+        }
+        return;
+    }
+    
+    // أمر timeout
+    if (commandName === 'timeout') {
+        // التحقق من الصلاحيات
+        if (!member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+            return interaction.reply({ 
+                content: '❌ **ليس لديك الصلاحية لاستخدام هذا الأمر!**\n\nأنت بحاجة إلى صلاحية **Moderate Members**.',
+                ephemeral: true 
+            });
+        }
+        
+        const targetUser = options.getUser('user');
+        const durationSeconds = parseInt(options.getString('duration'));
+        const reason = options.getString('reason') || 'لم يتم تحديد سبب';
+        
+        const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+        
+        if (!targetMember) {
+            return interaction.reply({ 
+                content: '❌ **المستخدم غير موجود في السيرفر!**',
+                ephemeral: true 
+            });
+        }
+        
+        // التحقق من الرتب
+        if (targetMember.roles.highest.position >= member.roles.highest.position && member.id !== guild.ownerId) {
+            return interaction.reply({ 
+                content: '❌ **لا يمكنك كتم صوت هذا المستخدم!**\n\nرتبته أعلى أو تساوي رتبتك.',
+                ephemeral: true 
+            });
+        }
+        
+        // التحقق إذا كان المستخدم مكتوم حالياً
+        if (targetMember.communicationDisabledUntil) {
+            return interaction.reply({ 
+                content: '❌ **هذا المستخدم مكتوم الصوت بالفعل!**',
+                ephemeral: true 
+            });
+        }
+        
+        try {
+            await targetMember.timeout(durationSeconds * 1000, `بواسطة: ${member.user.tag} | السبب: ${reason}`);
+            
+            // تحويل الثواني لصيغة مفهومة
+            let durationText = '';
+            if (durationSeconds < 60) durationText = `${durationSeconds} ثانية`;
+            else if (durationSeconds < 3600) durationText = `${Math.floor(durationSeconds / 60)} دقيقة`;
+            else if (durationSeconds < 86400) durationText = `${Math.floor(durationSeconds / 3600)} ساعة`;
+            else durationText = `${Math.floor(durationSeconds / 86400)} يوم`;
+            
+            const embed = new EmbedBuilder()
+                .setColor(0x9b59b6)
+                .setTitle('🔇 تم كتم صوت مستخدم')
+                .setDescription(`**تم كتم صوت ${targetUser.tag} بنجاح**`)
+                .addFields(
+                    { name: '👤 المستخدم', value: `${targetUser.tag} (<@${targetUser.id}>)`, inline: true },
+                    { name: '👑 بواسطة', value: `${member.user.tag}`, inline: true },
+                    { name: '⏰ المدة', value: durationText, inline: true },
+                    { name: '📝 السبب', value: reason, inline: false }
+                )
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed] });
+            
+        } catch (error) {
+            console.error('❌ خطأ في أمر timeout:', error);
+            await interaction.reply({ 
+                content: '❌ **حدث خطأ أثناء محاولة كتم صوت المستخدم!**',
+                ephemeral: true 
+            });
+        }
+        return;
+    }
+    
+    // أمر lock (قفل قناة)
+    if (commandName === 'lock') {
+        // التحقق من الصلاحيات
+        if (!member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+            return interaction.reply({ 
+                content: '❌ **ليس لديك الصلاحية لاستخدام هذا الأمر!**\n\nأنت بحاجة إلى صلاحية **Manage Channels**.',
+                ephemeral: true 
+            });
+        }
+        
+        const targetChannel = options.getChannel('channel') || interaction.channel;
+        const reason = options.getString('reason') || 'لم يتم تحديد سبب';
+        
+        // التحقق من نوع القناة
+        if (targetChannel.type !== ChannelType.GuildText) {
+            return interaction.reply({ 
+                content: '❌ **يمكن قفل القنوات النصية فقط!**',
+                ephemeral: true 
+            });
+        }
+        
+        try {
+            // منع إرسال الرسائل للرتبة العامة (@everyone)
+            await targetChannel.permissionOverwrites.edit(guild.id, {
+                SendMessages: false
+            });
+            
+            const embed = new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle('🔒 تم قفل القناة')
+                .setDescription(`**تم قفل القناة ${targetChannel} بنجاح**`)
+                .addFields(
+                    { name: '👑 بواسطة', value: `${member.user.tag}`, inline: true },
+                    { name: '📝 السبب', value: reason, inline: false }
+                )
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed] });
+            
+        } catch (error) {
+            console.error('❌ خطأ في أمر lock:', error);
+            await interaction.reply({ 
+                content: '❌ **حدث خطأ أثناء محاولة قفل القناة!**',
+                ephemeral: true 
+            });
+        }
+        return;
+    }
+    
+    // أمر unlock (فتح قناة)
+    if (commandName === 'unlock') {
+        // التحقق من الصلاحيات
+        if (!member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+            return interaction.reply({ 
+                content: '❌ **ليس لديك الصلاحية لاستخدام هذا الأمر!**\n\nأنت بحاجة إلى صلاحية **Manage Channels**.',
+                ephemeral: true 
+            });
+        }
+        
+        const targetChannel = options.getChannel('channel') || interaction.channel;
+        const reason = options.getString('reason') || 'لم يتم تحديد سبب';
+        
+        // التحقق من نوع القناة
+        if (targetChannel.type !== ChannelType.GuildText) {
+            return interaction.reply({ 
+                content: '❌ **يمكن فتح القنوات النصية فقط!**',
+                ephemeral: true 
+            });
+        }
+        
+        try {
+            // إعادة السماح بإرسال الرسائل للرتبة العامة (@everyone)
+            await targetChannel.permissionOverwrites.edit(guild.id, {
+                SendMessages: null // null يعني إزالة التعديل والعودة للإعدادات الافتراضية
+            });
+            
+            const embed = new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setTitle('🔓 تم فتح القناة')
+                .setDescription(`**تم فتح القناة ${targetChannel} بنجاح**`)
+                .addFields(
+                    { name: '👑 بواسطة', value: `${member.user.tag}`, inline: true },
+                    { name: '📝 السبب', value: reason, inline: false }
+                )
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed] });
+            
+        } catch (error) {
+            console.error('❌ خطأ في أمر unlock:', error);
+            await interaction.reply({ 
+                content: '❌ **حدث خطأ أثناء محاولة فتح القناة!**',
+                ephemeral: true 
+            });
+        }
+        return;
+    }
+    
+    // أمر role (إدارة الرتب)
+    if (commandName === 'role') {
+        const subcommand = options.getSubcommand();
+        
+        // التحقق من الصلاحيات الأساسية لإدارة الرتب
+        if (!member.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+            return interaction.reply({ 
+                content: '❌ **ليس لديك الصلاحية لاستخدام هذا الأمر!**\n\nأنت بحاجة إلى صلاحية **Manage Roles**.',
+                ephemeral: true 
+            });
+        }
+        
+        // أمر give (إعطاء رتبة)
+        if (subcommand === 'give') {
+            const targetUser = options.getUser('user');
+            const targetRole = options.getRole('role');
+            
+            const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+            
+            if (!targetMember) {
+                return interaction.reply({ 
+                    content: '❌ **المستخدم غير موجود في السيرفر!**',
+                    ephemeral: true 
+                });
+            }
+            
+            // التحقق من الرتبة (لا يمكن إعطاء رتبة أعلى من رتبة المستخدم)
+            if (targetRole.position >= member.roles.highest.position && member.id !== guild.ownerId) {
+                return interaction.reply({ 
+                    content: '❌ **لا يمكنك إعطاء هذه الرتبة!**\n\nالرتبة أعلى أو تساوي أعلى رتبة لديك.',
+                    ephemeral: true 
+                });
+            }
+            
+            // التحقق إذا كان المستخدم لديه الرتبة بالفعل
+            if (targetMember.roles.cache.has(targetRole.id)) {
+                return interaction.reply({ 
+                    content: `❌ **${targetUser.tag} لديه هذه الرتبة بالفعل!**`,
+                    ephemeral: true 
+                });
+            }
+            
+            try {
+                await targetMember.roles.add(targetRole);
+                
+                const embed = new EmbedBuilder()
+                    .setColor(0x2ecc71)
+                    .setTitle('✅ تم إعطاء رتبة')
+                    .setDescription(`**تم إعطاء رتبة ${targetRole} لـ ${targetUser.tag}**`)
+                    .addFields(
+                        { name: '👤 المستخدم', value: `${targetUser.tag} (<@${targetUser.id}>)`, inline: true },
+                        { name: '👑 بواسطة', value: `${member.user.tag}`, inline: true },
+                        { name: '🎭 الرتبة', value: `${targetRole.name} (<@&${targetRole.id}>)`, inline: true }
+                    )
+                    .setTimestamp();
+                
+                await interaction.reply({ embeds: [embed] });
+                
+            } catch (error) {
+                console.error('❌ خطأ في أمر role give:', error);
+                await interaction.reply({ 
+                    content: '❌ **حدث خطأ أثناء محاولة إعطاء الرتبة!**',
+                    ephemeral: true 
+                });
+            }
+            return;
+        }
+        
+        // أمر remove (إزالة رتبة)
+        if (subcommand === 'remove') {
+            const targetUser = options.getUser('user');
+            const targetRole = options.getRole('role');
+            
+            const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+            
+            if (!targetMember) {
+                return interaction.reply({ 
+                    content: '❌ **المستخدم غير موجود في السيرفر!**',
+                    ephemeral: true 
+                });
+            }
+            
+            // التحقق من الرتبة
+            if (targetRole.position >= member.roles.highest.position && member.id !== guild.ownerId) {
+                return interaction.reply({ 
+                    content: '❌ **لا يمكنك إزالة هذه الرتبة!**\n\nالرتبة أعلى أو تساوي أعلى رتبة لديك.',
+                    ephemeral: true 
+                });
+            }
+            
+            // التحقق إذا كان المستخدم لديه الرتبة
+            if (!targetMember.roles.cache.has(targetRole.id)) {
+                return interaction.reply({ 
+                    content: `❌ **${targetUser.tag} لا يملك هذه الرتبة!**`,
+                    ephemeral: true 
+                });
+            }
+            
+            try {
+                await targetMember.roles.remove(targetRole);
+                
+                const embed = new EmbedBuilder()
+                    .setColor(0xe74c3c)
+                    .setTitle('✅ تم إزالة رتبة')
+                    .setDescription(`**تم إزالة رتبة ${targetRole} من ${targetUser.tag}**`)
+                    .addFields(
+                        { name: '👤 المستخدم', value: `${targetUser.tag} (<@${targetUser.id}>)`, inline: true },
+                        { name: '👑 بواسطة', value: `${member.user.tag}`, inline: true },
+                        { name: '🎭 الرتبة', value: `${targetRole.name} (<@&${targetRole.id}>)`, inline: true }
+                    )
+                    .setTimestamp();
+                
+                await interaction.reply({ embeds: [embed] });
+                
+            } catch (error) {
+                console.error('❌ خطأ في أمر role remove:', error);
+                await interaction.reply({ 
+                    content: '❌ **حدث خطأ أثناء محاولة إزالة الرتبة!**',
+                    ephemeral: true 
+                });
+            }
+            return;
+        }
+        
+        // أمر list (عرض رتب المستخدم)
+        if (subcommand === 'list') {
+            const targetUser = options.getUser('user');
+            
+            const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+            
+            if (!targetMember) {
+                return interaction.reply({ 
+                    content: '❌ **المستخدم غير موجود في السيرفر!**',
+                    ephemeral: true 
+                });
+            }
+            
+            const roles = targetMember.roles.cache
+                .filter(role => role.id !== guild.id) // استثناء @everyone
+                .sort((a, b) => b.position - a.position)
+                .map(role => `<@&${role.id}>`)
+                .join(', ') || 'لا يوجد رتب';
+            
+            const embed = new EmbedBuilder()
+                .setColor(0x3498db)
+                .setTitle(`🎭 رتب ${targetUser.tag}`)
+                .setDescription(`**${targetUser.tag} لديه ${targetMember.roles.cache.size - 1} رتبة**\n\n${roles}`)
+                .addFields(
+                    { name: 'أعلى رتبة', value: `${targetMember.roles.highest}`, inline: true },
+                    { name: 'لون الرتبة', value: targetMember.roles.color ? `#${targetMember.roles.color.color.toString(16)}` : 'لا يوجد', inline: true }
+                )
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed], ephemeral: true });
+            return;
+        }
+        
+        // أمر removeall (إزالة كل الرتب أو رتبة محددة من الكل)
+        if (subcommand === 'removeall') {
+            const targetRole = options.getRole('role');
+            
+            // إذا تم تحديد رتبة معينة
+            if (targetRole) {
+                // التحقق من الرتبة
+                if (targetRole.position >= member.roles.highest.position && member.id !== guild.ownerId) {
+                    return interaction.reply({ 
+                        content: '❌ **لا يمكنك إزالة هذه الرتبة من الأعضاء!**\n\nالرتبة أعلى أو تساوي أعلى رتبة لديك.',
+                        ephemeral: true 
+                    });
+                }
+                
+                // رسالة تأكيد
+                const confirmEmbed = new EmbedBuilder()
+                    .setColor(0xe74c3c)
+                    .setTitle('⚠️ تأكيد إزالة الرتبة من الكل')
+                    .setDescription(`**هل أنت متأكد من إزالة رتبة ${targetRole} من جميع الأعضاء؟**\n\nسيتم إزالة الرتبة من كل الأعضاء الذين يملكونها.`)
+                    .setFooter({ text: 'اكتب "تأكيد" كرد على هذه الرسالة خلال 30 ثانية' });
+                
+                await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
+                const reply = await interaction.fetchReply();
+                
+                const filter = m => m.author.id === user.id && m.channel.id === interaction.channelId;
+                try {
+                    const collected = await interaction.channel.awaitMessages({ 
+                        filter, 
+                        max: 1, 
+                        time: 30000, 
+                        errors: ['time'] 
+                    });
+                    
+                    if (collected.first().content === 'تأكيد') {
+                        // جلب كل الأعضاء الذين لديهم هذه الرتبة
+                        const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(targetRole.id));
+                        
+                        if (membersWithRole.size === 0) {
+                            return interaction.editReply({ 
+                                content: '❌ **لا يوجد أعضاء يملكون هذه الرتبة!**',
+                                ephemeral: true 
+                            });
+                        }
+                        
+                        let removedCount = 0;
+                        let failedCount = 0;
+                        
+                        await interaction.editReply({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setColor(0x3498db)
+                                    .setTitle('🔄 جاري إزالة الرتبة...')
+                                    .setDescription(`جاري إزالة رتبة ${targetRole.name} من ${membersWithRole.size} عضو...`)
+                            ]
+                        });
+                        
+                        // إزالة الرتبة من كل عضو
+                        for (const [memberId, member] of membersWithRole) {
+                            try {
+                                await member.roles.remove(targetRole);
+                                removedCount++;
+                            } catch (error) {
+                                failedCount++;
+                            }
+                        }
+                        
+                        const resultEmbed = new EmbedBuilder()
+                            .setColor(0x2ecc71)
+                            .setTitle('✅ تم إزالة الرتبة')
+                            .setDescription(`**تم إزالة رتبة ${targetRole} من جميع الأعضاء**`)
+                            .addFields(
+                                { name: '🎭 الرتبة', value: targetRole.name, inline: true },
+                                { name: '✅ تمت الإزالة من', value: `${removedCount} عضو`, inline: true },
+                                { name: '❌ فشل من', value: `${failedCount} عضو`, inline: true }
+                            )
+                            .setTimestamp();
+                        
+                        await interaction.editReply({ embeds: [resultEmbed] });
+                    } else {
+                        await interaction.editReply({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setColor(0xf39c12)
+                                    .setTitle('❌ تم إلغاء العملية')
+                                    .setDescription('لم يتم إزالة الرتبة.')
+                            ]
+                        });
+                    }
+                } catch (error) {
+                    await interaction.editReply({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setColor(0x95a5a6)
+                                .setTitle('⏰ انتهى الوقت')
+                                .setDescription('لم يتم الرد في الوقت المحدد.')
+                        ]
+                    });
+                }
+                return;
+            } 
+            // إذا لم يتم تحديد رتبة - إزالة كل الرتب من كل الأعضاء
+            else {
+                // رسالة تأكيد مع تحذير شديد
+                const confirmEmbed = new EmbedBuilder()
+                    .setColor(0xe74c3c)
+                    .setTitle('⚠️⚠️ تحذير شديد الخطورة ⚠️⚠️')
+                    .setDescription(`**هل أنت متأكد من إزالة كل الرتب من جميع الأعضاء؟**\n\n**سيتم:**\n• إزالة كل الرتب (ما عدا @everyone) من كل الأعضاء\n• لا يمكن التراجع عن هذه العملية\n• قد تستغرق وقتاً طويلاً`)
+                    .addFields({
+                        name: '📊 إحصائيات',
+                        value: `• عدد الأعضاء: ${guild.memberCount}\n• عدد الرتب: ${guild.roles.cache.size - 1}`
+                    })
+                    .setFooter({ text: 'اكتب "تأكيد نهائي" خلال 30 ثانية للمتابعة' });
+                
+                await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
+                const reply = await interaction.fetchReply();
+                
+                const filter = m => m.author.id === user.id && m.channel.id === interaction.channelId;
+                try {
+                    const collected = await interaction.channel.awaitMessages({ 
+                        filter, 
+                        max: 1, 
+                        time: 30000, 
+                        errors: ['time'] 
+                    });
+                    
+                    if (collected.first().content === 'تأكيد نهائي') {
+                        await interaction.editReply({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setColor(0x3498db)
+                                    .setTitle('🔄 جاري إزالة كل الرتب...')
+                                    .setDescription(`جاري إزالة كل الرتب من ${guild.memberCount} عضو...\nهذا قد يستغرق دقيقة أو أكثر.`)
+                            ]
+                        });
+                        
+                        let totalMembers = 0;
+                        let totalRolesRemoved = 0;
+                        
+                        // جلب كل الأعضاء
+                        const members = await guild.members.fetch();
+                        
+                        for (const [memberId, member] of members) {
+                            if (member.user.bot) continue; // تجاهل البوتات
+                            
+                            const rolesToRemove = member.roles.cache.filter(role => role.id !== guild.id);
+                            
+                            if (rolesToRemove.size > 0) {
+                                try {
+                                    await member.roles.remove(rolesToRemove);
+                                    totalMembers++;
+                                    totalRolesRemoved += rolesToRemove.size;
+                                } catch (error) {
+                                    console.log(`❌ فشل إزالة رتب من ${member.user.tag}:`, error.message);
+                                }
+                            }
+                        }
+                        
+                        const resultEmbed = new EmbedBuilder()
+                            .setColor(0x2ecc71)
+                            .setTitle('✅ تم إزالة كل الرتب')
+                            .setDescription(`**تمت إزالة كل الرتب من الأعضاء بنجاح**`)
+                            .addFields(
+                                { name: '👥 أعضاء تم تعديلهم', value: `${totalMembers} عضو`, inline: true },
+                                { name: '🎭 رتب تمت إزالتها', value: `${totalRolesRemoved} رتبة`, inline: true },
+                                { name: '📊 إجمالي الأعضاء', value: `${guild.memberCount} عضو`, inline: true }
+                            )
+                            .setTimestamp();
+                        
+                        await interaction.editReply({ embeds: [resultEmbed] });
+                    } else {
+                        await interaction.editReply({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setColor(0xf39c12)
+                                    .setTitle('❌ تم إلغاء العملية')
+                                    .setDescription('لم يتم إزالة أي رتب.')
+                            ]
+                        });
+                    }
+                } catch (error) {
+                    await interaction.editReply({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setColor(0x95a5a6)
+                                .setTitle('⏰ انتهى الوقت')
+                                .setDescription('لم يتم الرد في الوقت المحدد.')
+                        ]
+                    });
+                }
+                return;
+            }
+        }
     }
 });
 
