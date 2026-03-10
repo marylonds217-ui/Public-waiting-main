@@ -926,13 +926,13 @@ const commands = [
                 .setDescription('القناة')
                 .setRequired(true))
         .addStringOption(option =>
-            option.setName('title')
-                .setDescription('عنوان الإعلان')
-                .setRequired(false))
-        .addStringOption(option =>
             option.setName('message')
                 .setDescription('نص الإعلان')
                 .setRequired(true))
+        .addStringOption(option =>
+            option.setName('title')
+                .setDescription('عنوان الإعلان')
+                .setRequired(false))
         .addStringOption(option =>
             option.setName('color')
                 .setDescription('اللون (مثل #FF0000)')
@@ -989,13 +989,13 @@ const commands = [
         .setName('embed')
         .setDescription('إنشاء رسالة منسقة')
         .addStringOption(option =>
-            option.setName('title')
-                .setDescription('العنوان')
-                .setRequired(false))
-        .addStringOption(option =>
             option.setName('description')
                 .setDescription('الوصف')
                 .setRequired(true))
+        .addStringOption(option =>
+            option.setName('title')
+                .setDescription('العنوان')
+                .setRequired(false))
         .addStringOption(option =>
             option.setName('color')
                 .setDescription('اللون')
