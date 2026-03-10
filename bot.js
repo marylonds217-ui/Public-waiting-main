@@ -688,8 +688,24 @@ async function registerCommands() {
 
         const rest = new REST({ version: '10' }).setToken(config.token);
         
-        console.log('🔄 جاري تسجيل الـ Slash Commands...');
-        console.log(`📊 عدد الأوامر: ${commands.length}`);
+        console.log('�️  جاري حذف الأوامر القديمة...');
+        
+        // حذف جميع الأوامر القديمة أولاً
+        try {
+            await rest.put(
+                Routes.applicationCommands(client.user.id),
+                { body: [] }
+            );
+            console.log('✅ تم حذف الأوامر القديمة!');
+        } catch (err) {
+            console.warn('⚠️ تحذير عند حذف الأوامر:', err.message);
+        }
+        
+        // معادلة 2 ثانية قبل تسجيل الأوامر الجديدة
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('🔄 جاري تسجيل الـ Slash Commands الجديدة...');
+        console.log(`📊 عدد الأوامر الجديدة: ${commands.length}`);
         console.log(`Client ID: ${client.user.id}`);
         
         const result = await rest.put(
