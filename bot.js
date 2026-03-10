@@ -244,7 +244,125 @@ const commands = [
         .setDescription('مسح كل الإعدادات'),
     new SlashCommandBuilder()
         .setName('help')
-        .setDescription('عرض كل الأوامر المتاحة')
+        .setDescription('عرض كل الأوامر المتاحة'),
+    // أوامر النظام (Moderation Commands)
+    new SlashCommandBuilder()
+        .setName('ban')
+        .setDescription('حظر مستخدم من السيرفر')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('المستخدم المراد حظره')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('سبب الحظر')
+                .setRequired(false))
+        .addIntegerOption(option =>
+            option.setName('days')
+                .setDescription('عدد أيام دورة الرسائل للحذف (0-7)')
+                .setRequired(false)
+                .setMinValue(0)
+                .setMaxValue(7)),
+    new SlashCommandBuilder()
+        .setName('kick')
+        .setDescription('طرد مستخدم من السيرفر')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('المستخدم المراد طرده')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('سبب الطرد')
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('timeout')
+        .setDescription('كتم صوت مستخدم مؤقتاً')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('المستخدم المراد كتم صوته')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('duration')
+                .setDescription('مدة كتم الصوت')
+                .setRequired(true)
+                .addChoices(
+                    { name: '1 دقيقة', value: '60' },
+                    { name: '5 دقائق', value: '300' },
+                    { name: '10 دقائق', value: '600' },
+                    { name: '1 ساعة', value: '3600' },
+                    { name: '24 ساعة', value: '86400' },
+                    { name: '7 أيام', value: '604800' },
+                    { name: '28 يوم', value: '2419200' }
+                ))
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('سبب كتم الصوت')
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('lock')
+        .setDescription('قفل قناة (منع إرسال رسائل)')
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('القناة المراد قفلها')
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('سبب القفل')
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('unlock')
+        .setDescription('فتح قناة مقفلة')
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('القناة المراد فتحها')
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('سبب الفتح')
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('role')
+        .setDescription('إدارة الرتب (إعطاء/إزالة)')
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('give')
+                .setDescription('إعطاء رتبة لمستخدم')
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('المستخدم')
+                        .setRequired(true))
+                .addRoleOption(option =>
+                    option.setName('role')
+                        .setDescription('الرتبة')
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remove')
+                .setDescription('إزالة رتبة من مستخدم')
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('المستخدم')
+                        .setRequired(true))
+                .addRoleOption(option =>
+                    option.setName('role')
+                        .setDescription('الرتبة')
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('list')
+                .setDescription('عرض كل رتب المستخدم')
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('المستخدم')
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('removeall')
+                .setDescription('إزالة كل الرتب من جميع الأعضاء (أو رتبة محددة)')
+                .addRoleOption(option =>
+                    option.setName('role')
+                        .setDescription('الرتبة المراد إزالتها من الجميع (اختياري)')
+                        .setRequired(false)))
 ].map(command => command.toJSON());
 
 // تخزين البيانات
