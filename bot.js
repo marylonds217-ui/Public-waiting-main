@@ -1453,12 +1453,20 @@ async function registerCommands() {
         console.log('🔄 جاري تسجيل الـ Slash Commands...');
         console.log(`📝 عدد الأوامر: ${commands.length}`);
         
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands }
-        );
+        // تسجيل الأوامر لكل سيرفر (أسرع من Global)
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                await rest.put(
+                    Routes.applicationGuildCommands(client.user.id, guild.id),
+                    { body: commands }
+                );
+                console.log(`✅ تم تسجيل الأوامر في سيرفر: ${guild.name}`);
+            } catch (error) {
+                console.error(`❌ خطأ في تسجيل الأوامر للسيرفر ${guild.name}:`, error.message);
+            }
+        }
         
-        console.log('✅ تم تسجيل الـ Slash Commands بنجاح!');
+        console.log('✅ تم تسجيل جميع الـ Slash Commands بنجاح!');
     } catch (error) {
         console.error('❌ خطأ في تسجيل الـ Slash Commands:', error);
     }
@@ -3217,6 +3225,18 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 // حدث دخول البوت لسيرفر جديد
 client.on('guildCreate', async (guild) => {
     console.log(`➕ تم إضافة البوت لسيرفر جديد: ${guild.name} (${guild.id})`);
+    
+    // تسجيل الأوامر في السيرفر الجديد
+    try {
+        const rest = new REST({ version: '10' }).setToken(config.token);
+        await rest.put(
+            Routes.applicationGuildCommands(client.user.id, guild.id),
+            { body: commands }
+        );
+        console.log(`✅ تم تسجيل الأوامر في السيرفر الجديد: ${guild.name}`);
+    } catch (error) {
+        console.error(`❌ خطأ في تسجيل الأوامر للسيرفر ${guild.name}:`, error.message);
+    }
     
     // التحقق إذا السيرفر مقفل
     const lockedServers = serverSettings.lockedServers || [];
