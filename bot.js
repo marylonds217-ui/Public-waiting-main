@@ -676,18 +676,34 @@ function canUseModerationCommands(member) {
 // دالة لتسجيل الـ Slash Commands
 async function registerCommands() {
     try {
+        if (!config.token) {
+            console.error('❌ لا يوجد DISCORD_TOKEN!');
+            return;
+        }
+
+        if (!client.user) {
+            console.error('❌ client.user غير متاح بعد!');
+            return;
+        }
+
         const rest = new REST({ version: '10' }).setToken(config.token);
         
         console.log('🔄 جاري تسجيل الـ Slash Commands...');
+        console.log(`📊 عدد الأوامر: ${commands.length}`);
+        console.log(`Client ID: ${client.user.id}`);
         
-        await rest.put(
+        const result = await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands }
         );
         
-        console.log('✅ تم تسجيل الـ Slash Commands بنجاح!');
+        console.log(`✅ تم تسجيل ${result.length} Slash Commands بنجاح!`);
+        console.log(`📝 الأوامر المسجلة: ${result.map(cmd => cmd.name).join(', ')}`);
     } catch (error) {
-        console.error('❌ خطأ في تسجيل الـ Slash Commands:', error);
+        console.error('❌ خطأ في تسجيل الـ Slash Commands:', error.message || error);
+        if (error.response) {
+            console.error('❌ REST Response Error:', error.response);
+        }
     }
 }
 
