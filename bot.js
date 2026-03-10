@@ -708,6 +708,22 @@ async function registerCommands() {
         console.log(`📊 عدد الأوامر الجديدة: ${commands.length}`);
         console.log(`Client ID: ${client.user.id}`);
         
+        // حذف الأوامر من كل السيرفرات (Guild Commands)
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                const guildCommands = await rest.get(Routes.applicationGuildCommands(client.user.id, guild.id));
+                for (const cmd of guildCommands) {
+                    await rest.delete(Routes.applicationGuildCommand(client.user.id, guild.id, cmd.id));
+                }
+                console.log(`✅ تم حذف أوامر السيرفر ${guild.name}`);
+            } catch (err) {
+                // تجاهل الأخطاء
+            }
+        }
+        
+        // انتظار إضافي
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const result = await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands }
