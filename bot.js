@@ -272,16 +272,16 @@ const commands = [
             option.setName('user')
                 .setDescription('المستخدم المراد حظره')
                 .setRequired(true))
-        .addStringOption(option =>
-            option.setName('reason')
-                .setDescription('سبب الحظر')
-                .setRequired(false))
         .addIntegerOption(option =>
             option.setName('days')
                 .setDescription('عدد أيام دورة الرسائل للحذف (0-7)')
                 .setRequired(false)
                 .setMinValue(0)
                 .setMaxValue(7))
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('سبب الحظر')
+                .setRequired(false))
         .toJSON(),
     
     new SlashCommandBuilder()
