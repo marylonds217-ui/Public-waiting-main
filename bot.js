@@ -1463,14 +1463,55 @@ async function registerCommands() {
         console.log('🔄 جاري تسجيل الـ Slash Commands...');
         console.log(`📝 عدد الأوامر: ${commands.length}`);
         
-        await rest.put(
+        // محاولة تسجيل الأوامر مع timeout
+        const data = await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands }
         );
         
-        console.log('✅ تم تسجيل الـ Slash Commands بنجاح!');
+        console.log(`✅ تم تسجيل ${data.length} Slash Commands بنجاح!`);
+        console.log(`📋 الأوامر: ${data.map(cmd => cmd.name).join(', ')}`);
+        
     } catch (error) {
-        console.error('❌ خطأ في تسجيل الـ Slash Commands:', error);
+        console.error('❌ خطأ في تسجيل الـ Slash Commands:');
+        
+        // طباعة تفاصيل الخطأ بشكل مفصل
+        if (error.code === 50035) {
+            console.error('⚠️ خطأ في هيكلة الأوامر:');
+            if (error.rawErrors) {
+                error.rawErrors.forEach((err, index) => {
+                    console.error(`الأمر رقم ${index}:`, err);
+                });
+            }
+        }
+        
+        console.error('الرسالة:', error.message);
+        console.error('الكود:', error.code);
+        console.error('الـ Status:', error.status);
+        
+        if (error.response) {
+            console.error('تفاصيل الاستجابة:', error.response.data);
+        }
+        
+        // محاولة تسجيل الأوامر بشكل منفصل للعثور على الأمر المشكل
+        console.log('🔄 محاولة تسجيل الأوامر بشكل منفصل للعثور على الخطأ...');
+        
+        for (let i = 0; i < commands.length; i++) {
+            try {
+                const testRest = new REST({ version: '10' }).setToken(config.token);
+                await testRest.put(
+                    Routes.applicationCommands(client.user.id),
+                    { body: [commands[i]] }
+                );
+                console.log(`✅ الأمر ${i + 1} (${commands[i].name}) تم تسجيله بنجاح`);
+            } catch (cmdError) {
+                console.error(`❌ خطأ في الأمر ${i + 1} (${commands[i]?.name || 'غير معروف'}):`);
+                console.error(cmdError.message);
+                if (cmdError.rawErrors) {
+                    console.error('تفاصيل:', cmdError.rawErrors);
+                }
+            }
+        }
     }
 }
 
