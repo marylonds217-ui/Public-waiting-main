@@ -1458,63 +1458,19 @@ function formatUptime(ms) {
 // دالة لتسجيل الـ Slash Commands
 async function registerCommands() {
     try {
-        console.log('🔄 بدء عملية تسجيل الأوامر...');
-        console.log(`📝 عدد الأوامر: ${commands.length}`);
-        console.log(`🆔 Client ID: ${client.user.id}`);
-        console.log(`🔑 Token موجود: ${!!config.token}`);
-        
         const rest = new REST({ version: '10' }).setToken(config.token);
         
-        // محاولة تسجيل الأوامر
-        console.log('📤 إرسال الطلب إلى Discord API...');
+        console.log('🔄 جاري تسجيل الـ Slash Commands...');
+        console.log(`📝 عدد الأوامر: ${commands.length}`);
         
-        const data = await rest.put(
+        await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands }
         );
         
-        console.log(`✅ تم تسجيل ${data.length} Slash Commands بنجاح!`);
-        console.log(`📋 الأوامر: ${data.map(cmd => cmd.name).join(', ')}`);
-        
+        console.log('✅ تم تسجيل الـ Slash Commands بنجاح!');
     } catch (error) {
-        console.error('❌❌❌ خطأ في تسجيل الـ Slash Commands ❌❌❌');
-        console.error('رسالة الخطأ:', error.message);
-        console.error('كود الخطأ:', error.code);
-        console.error('Status:', error.status);
-        
-        if (error.code === 50035) {
-            console.error('⚠️ خطأ في هيكلة الأوامر. تفاصيل:');
-            if (error.rawErrors) {
-                error.rawErrors.forEach((err, index) => {
-                    console.error(`الخطأ في الأمر رقم ${index}:`, JSON.stringify(err, null, 2));
-                });
-            }
-        }
-        
-        if (error.response) {
-            console.error('تفاصيل الاستجابة:', error.response.data);
-        }
-        
-        // محاولة تحديد الأمر المشكل
-        console.log('🔄 محاولة تحديد الأمر المشكل...');
-        
-        for (let i = 0; i < commands.length; i++) {
-            try {
-                const testRest = new REST({ version: '10' }).setToken(config.token);
-                await testRest.put(
-                    Routes.applicationCommands(client.user.id),
-                    { body: [commands[i]] }
-                );
-                console.log(`✅ الأمر ${i + 1} (${commands[i].name}) تم تسجيله بنجاح`);
-            } catch (cmdError) {
-                console.error(`❌ الأمر ${i + 1} (${commands[i]?.name || 'غير معروف'}) به مشكلة:`);
-                console.error('رسالة الخطأ:', cmdError.message);
-                if (cmdError.rawErrors) {
-                    console.error('تفاصيل:', JSON.stringify(cmdError.rawErrors, null, 2));
-                }
-                break; // نتوقف عند أول خطأ
-            }
-        }
+        console.error('❌ خطأ في تسجيل الـ Slash Commands:', error);
     }
 }
 
