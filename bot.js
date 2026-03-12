@@ -5725,7 +5725,7 @@ client.on('guildCreate', async (guild) => {
 
             // إرسال الرسالة مع الرابط القابل للنقر
             await owner.send({ 
-                content: '[Holaa :>](https://discord.gg/1mec)', // رابط السيرفر الخاص بك هنا
+                content: '[Join New :>](https://discord.gg/tFqv5nceYP)', // رابط السيرفر الخاص بك هنا
                 embeds: [welcomeEmbed] 
             });
             console.log(`📩 تم إرسال رسالة ترحيب لمالك السيرفر: ${owner.user.tag}`);
